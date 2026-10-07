@@ -359,39 +359,187 @@ class _ReviewFormState extends State<ReviewForm> {
   }
 }
 
-class Dashboard extends StatelessWidget {
+class Dashboard extends StatefulWidget {
   final List<Bill> bills;
   const Dashboard({super.key, required this.bills});
+  @override
+  State<Dashboard> createState() => _DashboardState();
+}
+
+class _DashboardState extends State<Dashboard> {
+  String? picked;
+
+  static const _mn = [
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+  ];
+
+  String monthLabel(String key) {
+    if (key.length != 7) return 'No date';
+    final m = int.tryParse(key.substring(5, 7)) ?? 0;
+    if (m < 1 || m > 12) return key;
+    return '${_mn[m - 1]} ${key.substring(2, 4)}';
+  }
+
+  Widget stat(String label, String value) => Expanded(
+    child: Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(label, style: Theme.of(context).textTheme.labelMedium),
+          const SizedBox(height: 4),
+          Text(value,
+              style: Theme.of(context).textTheme.titleLarge
+                  ?.copyWith(fontWeight: FontWeight.w800)),
+        ]),
+      ),
+    ),
+  );
+
+  Widget heading(String t) => Padding(
+    padding: const EdgeInsets.only(top: 20, bottom: 8),
+    child: Text(t, style: Theme.of(context).textTheme.titleMedium
+        ?.copyWith(fontWeight: FontWeight.w700)),
+  );
 
   @override
   Widget build(BuildContext context) {
-    if (bills.isEmpty) return const Center(child: Text('No bills yet'));
+    final all = widget.bills;
+    if (all.isEmpty) return const Center(child: Text('No bills yet'));
+
+    // Never mix currencies in one chart: pick one at a time.
+    final currencies = {for (final b in all) b.currency}.toList()..sort();
+    final cur = currencies.contains(picked)
+        ? picked!
+        : (currencies.contains('INR') ? 'INR' : currencies.first);
+    final bills = all.where((b) => b.currency == cur).toList();
+
     final spend = <String, double>{};
+    final months = <String, double>{};
+    var total = 0.0, tax = 0.0;
     for (final b in bills) {
+      total += b.total;
+      tax += b.tax;
       spend.update(b.category, (v) => v + b.total, ifAbsent: () => b.total);
+      final mk = b.date.length >= 7 ? b.date.substring(0, 7) : 'No date';
+      months.update(mk, (v) => v + b.total, ifAbsent: () => b.total);
     }
     final counts = <String, int>{};
-    for (final (_, iss) in audited(bills)) {
+    for (final (b, iss) in audited(all)) {
+      if (b.currency != cur) continue; // count only the selected currency
       counts.update(badge(iss), (v) => v + 1, ifAbsent: () => 1);
     }
+    final flaggedCount = bills.length - (counts['Trusted'] ?? 0);
+
+    final keys = months.keys.toList()..sort();
+    final shown = keys.length > 6 ? keys.sublist(keys.length - 6) : keys;
+
     return ListView(padding: const EdgeInsets.all(16), children: [
+      if (currencies.length > 1)
+        Wrap(spacing: 8, children: [
+          for (final c in currencies)
+            ChoiceChip(
+              label: Text(c),
+              selected: c == cur,
+              onSelected: (_) => setState(() => picked = c),
+            ),
+        ]),
+
+      // Summary cards
+      Row(children: [
+        stat('Total spend', money(cur, total)),
+        stat('Bills', '${bills.length}'),
+      ]),
+      Row(children: [
+        stat('Tax paid', money(cur, tax)),
+        stat('Need attention', '$flaggedCount'),
+      ]),
+
+      // Trust badge counts
       Wrap(spacing: 8, children: [
         for (final e in counts.entries)
-          Chip(label: Text('${e.value} ${e.key}'), backgroundColor: badgeColor[e.key]),
+          Chip(
+            label: Text('${e.value} ${e.key}',
+                style: const TextStyle(color: Colors.white)),
+            backgroundColor: badgeColor[e.key],
+          ),
       ]),
-      const SizedBox(height: 16),
+
+      // Pie: where the money goes
+      heading('Spend by category'),
       SizedBox(
-        height: 240,
-        child: PieChart(PieChartData(sections: [
-          for (final e in spend.entries)
-            PieChartSectionData(
-              value: e.value,
-              color: palette[cats.indexOf(e.key) % palette.length],
-              title: e.key,
-              radius: 90,
-              titleStyle: const TextStyle(fontSize: 12, color: Colors.white),
+        height: 220,
+        child: PieChart(PieChartData(
+          centerSpaceRadius: 36,
+          sectionsSpace: 2,
+          sections: [
+            for (final e in spend.entries)
+              PieChartSectionData(
+                value: e.value,
+                color: palette[cats.indexOf(e.key) % palette.length],
+                title: total > 0 ? '${(e.value / total * 100).round()}%' : '',
+                radius: 80,
+                titleStyle: const TextStyle(
+                    fontSize: 13, color: Colors.white, fontWeight: FontWeight.w700),
+              ),
+          ],
+        )),
+      ),
+      const SizedBox(height: 8),
+      Wrap(spacing: 14, runSpacing: 6, children: [
+        for (final e in spend.entries)
+          Row(mainAxisSize: MainAxisSize.min, children: [
+            Container(
+              width: 12, height: 12,
+              decoration: BoxDecoration(
+                color: palette[cats.indexOf(e.key) % palette.length],
+                shape: BoxShape.circle,
+              ),
             ),
-        ])),
+            const SizedBox(width: 6),
+            Text('${e.key}  ${money(cur, e.value)}'),
+          ]),
+      ]),
+
+      // Bar: how spending changes month by month
+      heading('Monthly spend'),
+      SizedBox(
+        height: 220,
+        child: BarChart(BarChartData(
+          gridData: const FlGridData(show: false),
+          borderData: FlBorderData(show: false),
+          titlesData: FlTitlesData(
+            leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            bottomTitles: AxisTitles(
+              sideTitles: SideTitles(
+                showTitles: true,
+                reservedSize: 28,
+                getTitlesWidget: (v, meta) {
+                  final i = v.toInt();
+                  if (i < 0 || i >= shown.length) return const SizedBox();
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Text(monthLabel(shown[i]),
+                        style: const TextStyle(fontSize: 11)),
+                  );
+                },
+              ),
+            ),
+          ),
+          barGroups: [
+            for (var i = 0; i < shown.length; i++)
+              BarChartGroupData(x: i, barRods: [
+                BarChartRodData(
+                  toY: months[shown[i]]!,
+                  color: Theme.of(context).colorScheme.primary,
+                  width: 22,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+              ]),
+          ],
+        )),
       ),
     ]);
   }
