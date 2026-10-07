@@ -191,50 +191,71 @@ class _HomeState extends State<Home> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      title: const Text('SahiBill',
-          style: TextStyle(fontWeight: FontWeight.w800)),
-      actions: [
-        ValueListenableBuilder<ThemeMode>(
-          valueListenable: themeMode,
-          builder: (_, m, _) => IconButton(
-            icon: Icon(m == ThemeMode.dark ? Icons.light_mode : Icons.dark_mode),
-            onPressed: () => themeMode.value =
-            m == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark,
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('SahiBill',
+            style: TextStyle(fontWeight: FontWeight.w800)),
+        actions: [
+          ValueListenableBuilder<ThemeMode>(
+            valueListenable: themeMode,
+            builder: (_, m, _) => IconButton(
+              icon: Icon(
+                  m == ThemeMode.dark ? Icons.light_mode : Icons.dark_mode),
+              onPressed: () => themeMode.value =
+              m == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark,
+            ),
+          ),
+        ],
+      ),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              cs.surface,
+              cs.primaryContainer.withValues(alpha: 0.45),
+            ],
           ),
         ),
-      ],
-    ),
-    body: SafeArea(
-      child: IndexedStack(index: tab, children: [
-        ScanPage(history: bills, onSaved: refresh),
-        Dashboard(bills: bills),
-        Flags(bills: bills),
-      ]),
-    ),
-    bottomNavigationBar: NavigationBar(
-      selectedIndex: tab,
-      onDestinationSelected: (i) => setState(() => tab = i),
-      destinations: const [
-        NavigationDestination(
-          icon: Icon(Icons.document_scanner_outlined),
-          selectedIcon: Icon(Icons.document_scanner),
-          label: 'Scan',
+        child: SafeArea(
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 600),
+              child: IndexedStack(index: tab, children: [
+                ScanPage(history: bills, onSaved: refresh),
+                Dashboard(bills: bills),
+                Flags(bills: bills),
+              ]),
+            ),
+          ),
         ),
-        NavigationDestination(
-          icon: Icon(Icons.pie_chart_outline),
-          selectedIcon: Icon(Icons.pie_chart),
-          label: 'Dashboard',
-        ),
-        NavigationDestination(
-          icon: Icon(Icons.flag_outlined),
-          selectedIcon: Icon(Icons.flag),
-          label: 'Flags',
-        ),
-      ],
-    ),
-  );
+      ),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: tab,
+        onDestinationSelected: (i) => setState(() => tab = i),
+        destinations: const [
+          NavigationDestination(
+            icon: Icon(Icons.document_scanner_outlined),
+            selectedIcon: Icon(Icons.document_scanner),
+            label: 'Scan',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.pie_chart_outline),
+            selectedIcon: Icon(Icons.pie_chart),
+            label: 'Dashboard',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.flag_outlined),
+            selectedIcon: Icon(Icons.flag),
+            label: 'Flags',
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 // ---------- Scanning animation ----------
