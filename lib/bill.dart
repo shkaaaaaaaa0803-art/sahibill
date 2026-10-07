@@ -168,7 +168,10 @@ List<Issue> audit(Bill b, List<Bill> history) {
     }
   }
 
-  if (b.dateAmbiguous) {
+  // NEW: missing date. A bill with no date cannot be trusted.
+  if (b.date.isEmpty) {
+    out.add(('Date missing. Please add it', 1, ['date']));
+  } else if (b.dateAmbiguous) {
     out.add(('Date unclear (day/month). Please confirm', 1, ['date']));
   }
 

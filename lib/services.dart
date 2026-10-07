@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -26,25 +27,78 @@ Use "" or 0 for anything not printed.
 Do NOT extract names of cashiers, waiters or customers.
 ''';
 
-final _model = FirebaseAI.googleAI().generativeModel(
-  model: 'gemini-3.8-flash',
+// Change only these two lines if a model name needs to change.
+const _modelName = 'gemini-3.8-flash';
+const _fallbackModelName = 'gemini-3.5-flash-lite';
+
+GenerativeModel _make(String name) => FirebaseAI.googleAI().generativeModel(
+  model: name,
   generationConfig: GenerationConfig(responseMimeType: 'application/json'),
 );
 
+final _primary = _make(_modelName);
+final _fallback = _make(_fallbackModelName);
+
+const _attempts = 2;
+const _timeout = Duration(seconds: 30);
+
+bool _isQuota(Object e) {
+  final s = e.toString().toLowerCase();
+  return s.contains('quota') ||
+      s.contains('429') ||
+      s.contains('rate-limit') ||
+      s.contains('rate limit') ||
+      s.contains('resource_exhausted') ||
+      s.contains('resource exhausted');
+}
+
+/// Turns any scan error into (title, short message) for the error card.
+(String, String) friendlyError(Object e) {
+  if (_isQuota(e)) {
+    return (
+    'AI limit reached',
+    'The free AI quota is used up for now. Enter the bill manually, or try again later.',
+    );
+  }
+  final s = e.toString().toLowerCase();
+  if (e is TimeoutException || s.contains('timeout')) {
+    return (
+    'Taking too long',
+    'The AI did not answer in time. Check your internet and try again.',
+    );
+  }
+  return (
+  'Could not read this bill',
+  'Try a clearer photo, or enter the bill manually.',
+  );
+}
+
 Future<Bill> extractBill(Uint8List img, String mime) async {
   Object? lastError;
-  for (var attempt = 0; attempt < 3; attempt++) {
-    try {
-      final res = await _model.generateContent([
-        Content.multi([TextPart(_prompt), InlineDataPart(mime, img)]),
-      ]).timeout(const Duration(seconds: 45));
-      return Bill.fromMap(jsonDecode(res.text!));
-    } catch (e) {
-      lastError = e;
-      await Future.delayed(Duration(seconds: 2 * (attempt + 1)));
+  Object? quotaError;
+  for (final model in [_primary, _fallback]) {
+    var quota = false;
+    for (var attempt = 0; attempt < _attempts; attempt++) {
+      try {
+        final res = await model.generateContent([
+          Content.multi([TextPart(_prompt), InlineDataPart(mime, img)]),
+        ]).timeout(_timeout);
+        return Bill.fromMap(jsonDecode(res.text!));
+      } catch (e) {
+        lastError = e;
+        if (_isQuota(e)) {
+          quota = true;
+          quotaError = e;
+          break; // do not retry on quota, move to the fallback model
+        }
+        if (attempt < _attempts - 1) {
+          await Future.delayed(const Duration(seconds: 1));
+        }
+      }
     }
+    if (!quota) break; // only a quota error moves on to the fallback model
   }
-  throw lastError!;
+  throw quotaError ?? lastError!;
 }
 
 Future<CollectionReference<Map<String, dynamic>>> _bills() async {

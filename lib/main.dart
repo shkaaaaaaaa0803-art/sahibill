@@ -11,42 +11,67 @@ Future<void> main() async {
 }
 
 ThemeData buildTheme(Brightness br) {
-  final dark = br == Brightness.dark;
-  final surface = dark ? const Color(0xFF16201D) : Colors.white;
-  final base = ThemeData(
-    useMaterial3: true,
-    colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF0F766E), brightness: br),
+  final scheme = ColorScheme.fromSeed(
+    seedColor: const Color(0xFF0F766E),
+    brightness: br,
   );
-  final shape = RoundedRectangleBorder(borderRadius: BorderRadius.circular(16));
+  final base = ThemeData(useMaterial3: true, colorScheme: scheme);
+  final cardShape =
+  RoundedRectangleBorder(borderRadius: BorderRadius.circular(24));
 
   return base.copyWith(
-    scaffoldBackgroundColor: dark ? const Color(0xFF0B1210) : const Color(0xFFF6F8F7),
+    scaffoldBackgroundColor: scheme.surface,
     textTheme: GoogleFonts.interTextTheme(base.textTheme),
-    appBarTheme: const AppBarTheme(
+    appBarTheme: AppBarTheme(
       backgroundColor: Colors.transparent,
+      foregroundColor: scheme.onSurface,
       scrolledUnderElevation: 0,
       centerTitle: false,
     ),
     cardTheme: CardThemeData(
-      color: surface,
+      color: scheme.surfaceContainerLow,
       elevation: 0,
-      shape: shape,
+      shape: cardShape,
       margin: const EdgeInsets.symmetric(vertical: 6),
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
-      fillColor: surface,
+      fillColor: scheme.surfaceContainerHighest,
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(16),
         borderSide: BorderSide.none,
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: BorderSide(color: scheme.primary, width: 2),
       ),
     ),
     filledButtonTheme: FilledButtonThemeData(
-      style: FilledButton.styleFrom(minimumSize: const Size(0,52), shape: shape),
+      style: FilledButton.styleFrom(
+        minimumSize: const Size(0, 52),
+        shape: const StadiumBorder(),
+      ),
+    ),
+    outlinedButtonTheme: OutlinedButtonThemeData(
+      style: OutlinedButton.styleFrom(
+        minimumSize: const Size(0, 48),
+        shape: const StadiumBorder(),
+      ),
+    ),
+    chipTheme: ChipThemeData(
+      shape: const StadiumBorder(),
+      side: BorderSide.none,
+      backgroundColor: scheme.surfaceContainerHighest,
+      selectedColor: scheme.secondaryContainer,
     ),
     navigationBarTheme: NavigationBarThemeData(
-      backgroundColor: surface,
-      indicatorColor: dark ? const Color(0xFF134E4A) : const Color(0xFFCCFBF1),
+      backgroundColor: scheme.surfaceContainer,
+      indicatorColor: scheme.secondaryContainer,
+      elevation: 0,
+    ),
+    snackBarTheme: SnackBarThemeData(
+      behavior: SnackBarBehavior.floating,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
     ),
   );
 }
